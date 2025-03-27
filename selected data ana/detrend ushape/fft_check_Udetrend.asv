@@ -19,7 +19,7 @@ for i = 1:num_subjects
     x = (1:num_timepoints);
     
     % 一次多项式拟合?
-    p = polyfit(x, y, 2); %多项式系数polynomial coefficient
+    p = polyfit(x, y, 1); %多项式系数polynomial coefficient
     
     % 多项式拟合结果计算数据的趋势
     trend(i,:) = polyval(p, x); %trend_value for each time(x)
@@ -31,8 +31,16 @@ end
 figure;
 plot(t*1000,mean(detrended_data,1),'-o');
 hold on;
-ylim([-10 10]);
-yticks(-10:5:10);
+title('Detrended Proportion time course')
+xlim([-110,110]);
+%ylim([-0.08,0.08]);
+%yticks(-0.05:0.05:0.05)
+xlabel('Audio-visual lags (ms)')
+ylabel('Proportion')
+set(gca,'FontSize', 14);
+% ylim([-10 10]);
+% yticks(-10:5:10);
+
 figure;
 plot(t*1000,mean(trend,1),'-o');
 ylim([20 60]);
@@ -45,8 +53,8 @@ samplerate = 1/var_soa * 1000; % in hz
 
 t_padded = (-500:10:500) / 1000; % in second
 N = length(t_padded); % data points 201
-%detrended_data_padded = [zeros(num_subjects,(N-length(t))/2),detrended_data,zeros(num_subjects,(N-length(t))/2)];% padding data points = length(t_padded)
-detrended_data_padded = [zeros(num_subjects,(N-length(t))/2),data,zeros(num_subjects,(N-length(t))/2)];% padding data points = length(t_padded)
+detrended_data_padded = [zeros(num_subjects,(N-length(t))/2),detrended_data,zeros(num_subjects,(N-length(t))/2)];% padding data points = length(t_padded)
+%detrended_data_padded = [zeros(num_subjects,(N-length(t))/2),data,zeros(num_subjects,(N-length(t))/2)];% padding data points = length(t_padded)
 
 T = [1:N]/samplerate; % checked data length 201
 
@@ -64,6 +72,7 @@ xlabel('Frequency (Hz)');
 ylabel('Power');
 xlim([5,30]);
 %% permutation test
+% remember to clarify the permutation vars !
 PS_interest = singleside_PS;
 
 interest_freq_index = (faxis >= 5 & faxis <= 30);
@@ -73,12 +82,21 @@ num_permute = 1000;
 permute_stats = zeros(num_permute,size(obs_statistics,1),size(obs_statistics,2));
 
 for ti = 1:num_permute
-    % permute for detrended_data
+    
     %permute_detrend_data = detrended_data(:,randperm(size(detrended_data,2)));
-    permute_detrend_data = data(:,randperm(size(data,2)));
+    permute_data = data(:,randperm(size(data,2)));
     var_soa = 10; % in ms
     samplerate = 1/var_soa * 1000; % 100 in hz
     permute_tpad = (-500:10:500)/1000; % in second
+    
+    %set the detrend method
+    %split-detrend_data(permute_data, t, 'split_poly2', struct()); 
+    %ushape-detrend_data(permute_data, t, 'ushape_poly2', struct());
+    %sg- params.w =;params.polyOrder = 2;detrended_data = detrend_data(permute_data, t, 'sgolay', params);
+    %movmean - params.window_size =;detrended_data = detrend_data(permute_data, t, 'movmean', params);
+    params.w =13;params.polyOrder = 2;
+    permute_detrend_data = detrend_data(permute_data, t,'lineardetrend', struct());
+    
     permute_N = length(permute_tpad); % 101 data points
     permute_datapad = [zeros(num_subjects,(permute_N-length(t))/2),permute_detrend_data,zeros(num_subjects,(permute_N-length(t))/2)];% t=21;length pad 101
     
@@ -142,7 +160,7 @@ h.PaperUnits='inch';
 h.PaperSize = mypapersize;
 h.PaperPosition=mypaperpos;
 
-% plot trend
+%% plot trend
 soa = -100:10:100;
 figure;
 s7=shadedErrorBar(soa,mean(trend,1)/100,(std(trend,0,1)/100)./sqrt(size(trend,1)),'lineProps',{'-','color',color(2,:)});
@@ -157,14 +175,14 @@ h.PaperUnits='inch';
 h.PaperSize = mypapersize;
 h.PaperPosition=mypaperpos;
 
-% plot detrend data
+%% plot detrend data
 figure;
-s3 = shadedErrorBar(soa,mean(detrended_data,1)/100,(std(detrended_data,0,1)/100) ./ sqrt(size(detrended_data,1)),'lineProps',{'-','color',color(2,:)});
+s3 = shadedErrorBar(soa,mean(detrended_data,1),std(detrended_data,0,1) ./ sqrt(size(detrended_data,1)),'lineProps',{'-','color',color(2,:)});
 s3.mainLine.LineWidth = 1.5;
 title('Detrended Proportion time course')
 xlim([-110,110]);
-ylim([-0.08,0.08]);
-yticks(-0.05:0.05:0.05)
+%ylim([-0.08,0.08]);
+%yticks(-0.05:0.05:0.05)
 xlabel('Audio-visual lags (ms)')
 ylabel('Proportion')
 set(gca,'FontSize', 14);
@@ -174,7 +192,7 @@ h.PaperUnits='inch';
 h.PaperSize = mypapersize;
 h.PaperPosition=mypaperpos;
 
-% fft
+%% fft
 figure;
 %corrected_pavlues = repmat(max(null_distribution_95th),1,size(null_distribution_95th,2));
 %plot(faxis(interest_freq_index),corrected_pavlues,'--k','LineWidth', 0.5);
@@ -187,24 +205,24 @@ mean_power = mean(obs_statistics,1);
 max_freqs = freq(sorted_idx); % 获取对应的频率值
 
 text_x = 29; % right
-text_y =max(mean_power)+0.001 ; % legend position
+text_y =max(permute_stat_95th)+0.01; % legend position
 text(text_x,text_y,'p=0.05  corrected','FontSize',10,'FontName',myfontname,'Color', 'k','HorizontalAlignment', 'right','VerticalAlignment', 'bottom');
 % %s1 = shadedErrorBar(faxis(interest_freq_index),mean(obs_statistics,1),std(obs_statistics,0,1) ./ sqrt(size(obs_statistics,1)),'lineProps',{'-','color',color(2,:)});
 % %s1.mainLine.LineWidth = 1.5;
 plot(faxis(interest_freq_index),mean(obs_statistics,1),'Color',color(2,:),'LineWidth', 1.5);
 hold on
-plot(max_freqs, sorted_vals+0.2, '*', 'Color', color(3,:), 'MarkerSize', 5, 'LineWidth', 0.8);
+plot(max_freqs, sorted_vals+0.02, '*', 'Color', color(3,:), 'MarkerSize', 5, 'LineWidth', 0.8);
 title('FFT of proportion');
 xlim([5 30]);
-%ylim([0,0.22]);
-%yticks(0.05:0.05:0.2);
+% ylim([0.05,0.22]);
+% yticks(0.05:0.05:0.2);
 % 确保 ylim 先更新
 ylim auto;  
 yl = ylim; % 获取最新的 y 轴范围
 y_min = yl(1);
-y_max = yl(2);
+y_max = max(mean_power);
 hold on;
-line([max_freqs,max_freqs],[y_min, y_max], 'LineStyle','--', 'Color', color(3,:), 'LineWidth', 0.8);
+line([max_freqs,max_freqs],[y_min,y_max], 'LineStyle','--','Color', 'k', 'LineWidth', 0.8);
 
 xlabel('Frequency(Hz)');
 ylabel('Power');
